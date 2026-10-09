@@ -12,7 +12,7 @@ class TimeCode {
 		void SetHours(unsigned int hours);
 		void SetMinutes(unsigned int minutes);
 		void SetSeconds(unsigned int seconds);
-		void WasteTimeAndBeSlow() const;
+		
 		
 		void reset();
 		

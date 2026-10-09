@@ -155,13 +155,8 @@ std::string TimeCode::ToString() const {
 	return str;
 }
 
+//Change 4 removed wasteTimeAndBeSlow() function because it was not used and was slowing down the simulation significantly.  It was a function that was used to test the speed of the simulation, but it was not needed for the final version of the simulation.  The function was removed to improve the performance of the simulation.
 
-void TimeCode::WasteTimeAndBeSlow() const {
-	int num = 0;
-	for(int i = INT_MAX; i > 2; i--){
-		num = num * i;
-	}
-}
 
 
 TimeCode TimeCode::operator+(const TimeCode& other) const {

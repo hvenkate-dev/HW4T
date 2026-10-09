@@ -11,6 +11,7 @@ void TestComponentConstructor();
 void TestGetComponents();
 void TestGetTimeCodeAsSeconds();
 void TestCopyConstructor();
+//removed wasteTimeAndBeSlow() test because it was removed from the TimeCode class
 
 void TestGetHours();
 void TestGetMinutes();

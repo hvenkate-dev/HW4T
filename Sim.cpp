@@ -243,23 +243,34 @@ int main(int argc, char* argv[]) {
 
 
 	std::cout << "Simulating traffic..." << std::endl;
-	BigInteger total_num_cars = BigInteger("0"); // number of cars that traveled, use BigInteger in case of integer overflow
+	unsigned long long int total_num_cars = 0; // number of cars that traveled, use BigInteger in case of integer overflow
 	std::vector<data_point_pair> data; // to store the data points
 	int num_cars = 0; // number of cars (intially 0)
-	int crash_count = 0;
-	int crash_timer = 0; // cool-off period of a crash
-	for(TimeCode t = TimeCode(); t < dur; t = t + TimeCode(0, 0, 1)){
+
+
+	int crash_count = 0; 
+
+	/* CHANGE 2:
+	Old code repeatedly printed and flushed progress and called ALL() every simulated second
+	NEW tracked last progress and printed only when the percent changes
+	The simulation is now more efficient */
+	int crash_timer = 0;// cool off period of a crash
+	int last_progress = -1; // remembers the last percent we printed
+	for (TimeCode t = TimeCode(); t < dur; t = t + TimeCode(0, 0, 1)) { // increment by 1 second
 		int progress = percentage(t.GetTimeCodeAsSeconds(), dur.GetTimeCodeAsSeconds());
-		std::cout << "\r" << progress << "%" << std::flush;
-
-		ALL();
-
+		//Only print when the percent changes, not every simulated second
+		if(progress !=last_progress){
+			std::cout << "\r" << progress << "%" << std::flush;
+			last_progress = progress;
+		}
 		// --- New Cars Show Up (maybe) ---
+		// End of change 2
+
 		int num_new_cars = poisson(new_car_rate);
 		if(num_cars >= CAP){
 			num_new_cars = 0; // road is full, no new cars
 		}
-		total_num_cars = total_num_cars + BigInteger(std::to_string(num_new_cars));
+		total_num_cars += num_new_cars;
 
 		// --- Existing Cars Might Leave ---
 		// Strong assumptions of model here!
@@ -276,12 +287,18 @@ int main(int argc, char* argv[]) {
 		crash_timer--;
 
 		// check for a crash once / day
-		double prob_of_crash_today = crash_prob_map.at(day_of_week_name(day_of_week_code(t)));
+
+		//Change 
+
+		//double prob_of_crash_today = crash_prob_map.at(day_of_week_name(day_of_week_code(t)));
 		//std::cout << "prob of crash today: " << prob_of_crash_today << std::endl;
+		
 		if(t.GetTimeCodeAsSeconds() % DURATION_1DAY == 0){
+			double prob_of_crash_today =
+				crash_prob_map.at(day_of_week_name(day_of_week_code(t)));
+
 			bool crash = crash_occurs(prob_of_crash_today);
 			if(crash){
-				///std::cout << "CRASH! No cars exit for a while now" << std::endl;
 				crash_count++;
 				crash_timer += DURATION_10MIN;
 			}
@@ -301,21 +318,27 @@ int main(int argc, char* argv[]) {
 	}
 	std::cout << std::endl;
 
+	// CHANGE 1 (after change 1 test; a day time reduced from 41.197s to 25.582s)
+	// Old: copied the entire vector and appended one timestamp on evrey iternation
+	// New: push_back directly on the map's vector adds in place with no copies (O(n)).
+	// Elimates repeated copying of the vector for each car count, which was O(n^2) time complexity.  Now it is O(n) time complexity.
 
 	// Find the times at which certain amount of cars are present
 	std::cout << "Computing sample statistics..." << std::endl;
 	std::unordered_map<int, std::vector<TimeCode>> count_times;
+		int last_stats_progress = -1;
 	for(size_t i = 0; i < data.size(); i++){
+		// Only print when the percent changes (100 prints instead of ~600,000 flushes)
 		int progress = percentage(i, data.size());
-		std::cout << "\r" << progress << "%" << std::flush;
-		data_point_pair cur = data[i];
-		if(count_times.find(cur.num_cars) != count_times.end()){
-			std::vector<TimeCode> times_list = count_times[cur.num_cars];
-			times_list.push_back(cur.t);
-			count_times[cur.num_cars] = times_list;
-		} else {
-			count_times[cur.num_cars] = std::vector<TimeCode>{cur.t};
+		if(progress != last_stats_progress){
+			std::cout << "\r" << progress << "%" << std::flush;
+			last_stats_progress = progress;
 		}
+		data_point_pair cur = data[i];
+		// The old code copied the whole vector for this car count, added one item,
+		// then copied it back, on every iteration (O(n^2)). push_back directly on the
+		// map's vector adds in place with no copies (O(n)).
+		count_times[cur.num_cars].push_back(cur.t);
 	}
 	std::cout << "\n---Simulation Finished---" << std::endl;
 
@@ -327,7 +350,7 @@ int main(int argc, char* argv[]) {
 	res.road_capacity = CAP;
 	res.new_car_rate = new_car_rate;
 	res.num_crashes = crash_count;
-	res.total_cars = total_num_cars.ToString();
+	res.total_cars = std::to_string(total_num_cars);
 	res.count_times_map = count_times;
 
 	std::vector<int> x_data;
@@ -340,7 +363,7 @@ int main(int argc, char* argv[]) {
 	res.x_data = x_data;
 	res.y_data = y_data;
 	res.plotted_duration = TimeCode(0, 0, DURATION_10MIN);
-	res.plotted_duration.WasteTimeAndBeSlow();
+	
 
 
 	generateTerminalOutput(res);
